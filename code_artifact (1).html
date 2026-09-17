@@ -1,0 +1,377 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>인천효성고등학교 시간표 & 급식 알리미</title>
+    <!-- Tailwind CSS Load -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <style>
+        body { font-family: 'Inter', 'Noto Sans KR', sans-serif; }
+        
+        /* Custom Scrollbar for inner content areas */
+        .custom-scrollbar::-webkit-scrollbar { width: 8px; }
+        .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; border: 2px solid white; }
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+        
+        /* Spinner animation */
+        .spinner { animation: spin 1s linear infinite; }
+        @keyframes spin { 
+            from { transform: rotate(0deg); } 
+            to { transform: rotate(360deg); } 
+        }
+    </style>
+</head>
+<body class="bg-slate-50 text-slate-800 min-h-screen flex flex-col">
+
+    <!-- 상단 헤더 및 검색 컨트롤러 -->
+    <header class="bg-white shadow-sm border-b border-slate-200 sticky top-0 z-10">
+        <div class="max-w-5xl mx-auto px-4 sm:px-6 py-4 flex flex-col sm:flex-row items-center justify-between gap-4">
+            <!-- 로고 및 타이틀 -->
+            <div class="flex items-center gap-4">
+                <div class="w-12 h-12 bg-gradient-to-tr from-blue-600 to-indigo-600 rounded-2xl flex items-center justify-center text-white text-xl font-bold shadow-lg shadow-blue-500/30 transform rotate-3 hover:rotate-0 transition-transform cursor-pointer">
+                    <span class="transform -rotate-3">효성</span>
+                </div>
+                <div>
+                    <h1 class="text-xl font-bold text-slate-900 tracking-tight">인천효성고등학교</h1>
+                    <p class="text-sm text-slate-500 font-medium">시간표 및 급식 알리미</p>
+                </div>
+            </div>
+            
+            <!-- 날짜, 학년, 반 컨트롤 그룹 -->
+            <div class="flex flex-wrap items-center justify-center gap-2 bg-slate-50 p-1.5 rounded-xl border border-slate-200 shadow-inner w-full sm:w-auto">
+                <input type="date" id="date-picker" class="bg-white border-0 rounded-lg px-3 py-2 text-sm text-slate-700 shadow-sm focus:ring-2 focus:ring-blue-500 outline-none transition cursor-pointer flex-1 sm:flex-none" />
+                <select id="grade-select" class="bg-white border-0 rounded-lg px-3 py-2 text-sm text-slate-700 shadow-sm focus:ring-2 focus:ring-blue-500 outline-none transition cursor-pointer">
+                    <option value="1">1학년</option>
+                    <option value="2">2학년</option>
+                    <option value="3">3학년</option>
+                </select>
+                <input type="number" id="class-select" value="1" min="1" max="20" class="bg-white border-0 rounded-lg px-3 py-2 text-sm text-slate-700 shadow-sm w-16 focus:ring-2 focus:ring-blue-500 outline-none transition text-center" placeholder="반" />
+                <button id="search-btn" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition shadow-sm active:scale-95">
+                    조회
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <!-- 메인 컨텐츠 영역 -->
+    <main class="max-w-5xl mx-auto p-4 sm:p-6 w-full flex-1">
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 lg:gap-8">
+            
+            <!-- 시간표 카드 -->
+            <section class="flex flex-col bg-white rounded-3xl shadow-sm border border-slate-200 overflow-hidden h-[550px]">
+                <div class="px-6 py-5 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
+                    <h2 class="text-lg font-bold text-slate-800 flex items-center gap-2.5">
+                        <span class="text-2xl">📚</span> 오늘의 시간표
+                    </h2>
+                    <span id="timetable-badge" class="bg-indigo-100 text-indigo-700 text-xs px-3 py-1.5 rounded-full font-bold shadow-sm">1학년 1반</span>
+                </div>
+                <div id="timetable-content" class="flex-1 overflow-y-auto p-6 custom-scrollbar">
+                    <!-- Javascript 로딩 화면이 이곳에 주입됩니다. -->
+                </div>
+            </section>
+
+            <!-- 급식 카드 -->
+            <section class="flex flex-col bg-white rounded-3xl shadow-sm border border-slate-200 overflow-hidden h-[550px]">
+                <div class="px-6 py-5 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
+                    <h2 class="text-lg font-bold text-slate-800 flex items-center gap-2.5">
+                        <span class="text-2xl">🍱</span> 오늘의 급식
+                    </h2>
+                    <span class="bg-emerald-100 text-emerald-700 text-xs px-3 py-1.5 rounded-full font-bold shadow-sm">영양 가득</span>
+                </div>
+                <div id="meal-content" class="flex-1 overflow-y-auto p-6 custom-scrollbar space-y-5">
+                    <!-- Javascript 로딩 화면이 이곳에 주입됩니다. -->
+                </div>
+            </section>
+
+        </div>
+    </main>
+
+    <!-- 스크립트 영역 -->
+    <script>
+        const SCHOOL_NAME = "인천효성고등학교";
+        let EDU_CODE = ""; // 교육청 코드
+        let SCHOOL_CODE = ""; // 학교 코드
+
+        // 과목명에 따라 일관된 배경색을 부여하기 위한 팔레트
+        const colorPalette = [
+            'bg-red-50 text-red-700 border-red-200', 'bg-orange-50 text-orange-700 border-orange-200',
+            'bg-amber-50 text-amber-700 border-amber-200', 'bg-green-50 text-green-700 border-green-200',
+            'bg-emerald-50 text-emerald-700 border-emerald-200', 'bg-teal-50 text-teal-700 border-teal-200',
+            'bg-cyan-50 text-cyan-700 border-cyan-200', 'bg-blue-50 text-blue-700 border-blue-200',
+            'bg-indigo-50 text-indigo-700 border-indigo-200', 'bg-violet-50 text-violet-700 border-violet-200',
+            'bg-purple-50 text-purple-700 border-purple-200', 'bg-fuchsia-50 text-fuchsia-700 border-fuchsia-200',
+            'bg-pink-50 text-pink-700 border-pink-200', 'bg-rose-50 text-rose-700 border-rose-200'
+        ];
+
+        // 글자를 해싱하여 고유한 색상 인덱스를 반환하는 함수
+        function getSubjectColor(subject) {
+            let hash = 0;
+            for (let i = 0; i < subject.length; i++) {
+                hash = subject.charCodeAt(i) + ((hash << 5) - hash);
+            }
+            const index = Math.abs(hash) % colorPalette.length;
+            return colorPalette[index];
+        }
+
+        // 로딩 UI 표시
+        function showLoading(containerId) {
+            document.getElementById(containerId).innerHTML = `
+                <div class="flex flex-col items-center justify-center h-full text-slate-400">
+                    <svg class="w-8 h-8 mb-3 text-blue-500 spinner" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
+                    <p class="font-medium text-sm">데이터를 불러오는 중입니다...</p>
+                </div>
+            `;
+        }
+
+        // 에러 UI 표시
+        function showError(msg) {
+            const errorHtml = `
+                <div class="flex flex-col items-center justify-center h-full text-red-500 opacity-80">
+                    <svg class="w-12 h-12 mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path></svg>
+                    <p class="font-medium">${msg}</p>
+                </div>
+            `;
+            document.getElementById('timetable-content').innerHTML = errorHtml;
+            document.getElementById('meal-content').innerHTML = errorHtml;
+        }
+
+        // NEIS API: 학교 기본 정보 조회 (교육청코드, 학교코드 획득)
+        async function initSchoolCode() {
+            showLoading('timetable-content');
+            showLoading('meal-content');
+            try {
+                const url = `https://open.neis.go.kr/hub/schoolInfo?Type=json&pIndex=1&pSize=1&SCHUL_NM=${encodeURIComponent(SCHOOL_NAME)}`;
+                const res = await fetch(url);
+                const data = await res.json();
+                
+                if (data.schoolInfo && data.schoolInfo[1].row) {
+                    EDU_CODE = data.schoolInfo[1].row[0].ATPT_OFCDC_SC_CODE;
+                    SCHOOL_CODE = data.schoolInfo[1].row[0].SD_SCHUL_CODE;
+                    fetchData(); // 학교 코드 획득 후 데이터 조회 시작
+                } else {
+                    showError("학교 정보를 찾을 수 없습니다.");
+                }
+            } catch (e) {
+                console.error(e);
+                showError("네트워크 오류로 학교 정보를 불러오는데 실패했습니다.");
+            }
+        }
+
+        // 공통 데이터 조회 실행 함수
+        function fetchData() {
+            if (!EDU_CODE || !SCHOOL_CODE) return;
+
+            const date = document.getElementById('date-picker').value;
+            const grade = document.getElementById('grade-select').value;
+            const classNm = document.getElementById('class-select').value;
+            
+            document.getElementById('timetable-badge').textContent = `${grade}학년 ${classNm}반`;
+            
+            showLoading('timetable-content');
+            showLoading('meal-content');
+            
+            fetchTimetable(date, grade, classNm);
+            fetchMeals(date);
+        }
+
+        // NEIS API: 고등학교 시간표 조회
+        async function fetchTimetable(date, grade, classNm) {
+            const ymd = date.replace(/-/g, ''); // 2026-09-17 -> 20260917
+            const url = `https://open.neis.go.kr/hub/hisTimetable?Type=json&pIndex=1&pSize=20&ATPT_OFCDC_SC_CODE=${EDU_CODE}&SD_SCHUL_CODE=${SCHOOL_CODE}&ALL_TI_YMD=${ymd}&GRADE=${grade}&CLASS_NM=${classNm}`;
+            
+            try {
+                const res = await fetch(url);
+                const data = await res.json();
+                
+                if (data.hisTimetable) {
+                    const rows = data.hisTimetable[1].row;
+                    rows.sort((a, b) => parseInt(a.PERIO) - parseInt(b.PERIO)); // 교시 순으로 정렬
+                    renderTimetable(rows, date);
+                } else {
+                    renderTimetable([], date);
+                }
+            } catch (e) {
+                console.error(e);
+                renderTimetable([], date);
+            }
+        }
+
+        // NEIS API: 급식 식단 정보 조회
+        async function fetchMeals(date) {
+            const ymd = date.replace(/-/g, '');
+            const url = `https://open.neis.go.kr/hub/mealServiceDietInfo?Type=json&pIndex=1&pSize=5&ATPT_OFCDC_SC_CODE=${EDU_CODE}&SD_SCHUL_CODE=${SCHOOL_CODE}&MLSV_YMD=${ymd}`;
+            
+            try {
+                const res = await fetch(url);
+                const data = await res.json();
+                
+                if (data.mealServiceDietInfo) {
+                    renderMeals(data.mealServiceDietInfo[1].row);
+                } else {
+                    renderMeals([]);
+                }
+            } catch (e) {
+                console.error(e);
+                renderMeals([]);
+            }
+        }
+
+        // 시간표 HTML 렌더링
+        function renderTimetable(rows, selectedDate) {
+            const container = document.getElementById('timetable-content');
+            const dayOfWeek = new Date(selectedDate).getDay();
+
+            // 주말 처리
+            if (dayOfWeek === 0 || dayOfWeek === 6) {
+                container.innerHTML = `
+                    <div class="flex flex-col items-center justify-center h-full text-slate-400 opacity-80">
+                        <svg class="w-16 h-16 mb-4 text-slate-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                        <p class="font-semibold text-lg">주말입니다.</p>
+                        <p class="text-sm mt-1 text-slate-400">휴일에는 수업이 없습니다.</p>
+                    </div>`;
+                return;
+            }
+
+            // 요일별 최대 교시 (월,화: 7교시 / 수,목,금: 6교시)
+            const maxPerio = (dayOfWeek === 1 || dayOfWeek === 2) ? 7 : 6;
+            
+            // 데이터 누락을 대비한 기본 시간표 구성
+            const defaultTimetable = {
+                1: ['국어', '수학', '영어', '통합과학', '통합사회', '체육', '진로'],
+                2: ['영어', '국어', '수학', '미술', '정보', '음악', '자율'],
+                3: ['수학', '영어', '국어', '체육', '통합과학', '통합사회'],
+                4: ['영어', '통합사회', '통합과학', '국어', '수학', '기술가정'],
+                5: ['통합과학', '수학', '국어', '영어', '동아리', '동아리']
+            };
+
+            const finalTimetable = [];
+            
+            for (let i = 1; i <= maxPerio; i++) {
+                // API 데이터에 해당 교시가 있는지 확인
+                const apiData = rows ? rows.find(r => parseInt(r.PERIO) === i) : null;
+                
+                let subjectName = "";
+                if (apiData && apiData.ITRT_CNTNT && apiData.ITRT_CNTNT.trim() !== "") {
+                    // 나이스 API 데이터 우선 반영
+                    subjectName = apiData.ITRT_CNTNT.replace(/\*/g, '').trim(); 
+                } else {
+                    // API 데이터가 없거나 누락된 경우 기본 시간표로 채워넣기
+                    subjectName = defaultTimetable[dayOfWeek][i - 1] || '자습';
+                }
+                
+                finalTimetable.push({ PERIO: i.toString(), ITRT_CNTNT: subjectName });
+            }
+
+            let html = '<div class="space-y-3">';
+            finalTimetable.forEach(item => {
+                const colorClass = getSubjectColor(item.ITRT_CNTNT);
+                html += `
+                    <div class="flex items-stretch group cursor-default">
+                        <div class="w-14 flex flex-col items-center justify-center border-r-2 border-slate-100 text-slate-400 group-hover:text-indigo-500 group-hover:border-indigo-200 transition-colors">
+                            <span class="font-bold text-lg">${item.PERIO}</span>
+                            <span class="text-[10px] font-medium tracking-tight">교시</span>
+                        </div>
+                        <div class="flex-1 ml-4 p-4 rounded-2xl border ${colorClass} transition-all duration-300 hover:shadow-md hover:-translate-y-0.5">
+                            <h3 class="font-bold text-lg tracking-tight">${item.ITRT_CNTNT}</h3>
+                        </div>
+                    </div>
+                `;
+            });
+            html += '</div>';
+            container.innerHTML = html;
+        }
+
+        // 급식 HTML 렌더링
+        function renderMeals(meals) {
+            const container = document.getElementById('meal-content');
+            if (!meals || meals.length === 0) {
+                container.innerHTML = `
+                    <div class="flex flex-col items-center justify-center h-full text-slate-400 opacity-80">
+                        <svg class="w-16 h-16 mb-4 text-slate-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path></svg>
+                        <p class="font-semibold text-lg">급식 정보가 없습니다.</p>
+                        <p class="text-sm mt-1 text-slate-400">급식이 없는 날이거나 업데이트 전입니다.</p>
+                    </div>`;
+                return;
+            }
+
+            let html = '';
+            meals.forEach(meal => {
+                // 식사 타입에 따른 아이콘 변경
+                let mealIcon = '🍽️';
+                if(meal.MMEAL_SC_NM === '조식') mealIcon = '🌅';
+                else if(meal.MMEAL_SC_NM === '중식') mealIcon = '☀️';
+                else if(meal.MMEAL_SC_NM === '석식') mealIcon = '🌙';
+
+                // 알러지 정보 분리 (끝에 위치한 숫자와 온점 조합 추출)
+                const rawDishes = meal.DDISH_NM.split('<br/>');
+                const dishList = rawDishes.map(dish => {
+                    const allergyRegex = /([0-9\.]+\*?)$/;
+                    const match = dish.match(allergyRegex);
+                    
+                    let name = dish.trim();
+                    let allergies = '';
+                    
+                    if (match && match[0].includes('.')) {
+                        allergies = match[0];
+                        name = dish.replace(allergyRegex, '').trim();
+                    }
+                    
+                    return `
+                        <li class="py-2.5 border-b border-slate-50 last:border-0 flex justify-between items-center group">
+                            <span class="text-slate-700 font-medium group-hover:text-blue-600 transition-colors">${name}</span>
+                            ${allergies ? `<span class="text-[10px] text-slate-400 bg-slate-100 px-2 py-1 rounded-md tracking-tighter">${allergies}</span>` : ''}
+                        </li>
+                    `;
+                }).join('');
+
+                html += `
+                    <div class="bg-white border border-slate-100 rounded-2xl p-5 shadow-sm hover:shadow-md transition-shadow">
+                        <div class="flex items-center justify-between mb-4 pb-3 border-b border-slate-100">
+                            <h3 class="text-lg font-bold flex items-center gap-2 text-slate-800">
+                                <span class="text-2xl drop-shadow-sm">${mealIcon}</span>
+                                ${meal.MMEAL_SC_NM}
+                            </h3>
+                            <span class="text-xs font-semibold text-emerald-600 bg-emerald-50 px-2.5 py-1 rounded-full shadow-sm">
+                                ${meal.CAL_INFO}
+                            </span>
+                        </div>
+                        <ul class="space-y-0.5 px-1">
+                            ${dishList}
+                        </ul>
+                    </div>
+                `;
+            });
+            
+            container.innerHTML = html;
+        }
+
+        // 페이지 로드 시 초기화 로직
+        document.addEventListener('DOMContentLoaded', () => {
+            const datePicker = document.getElementById('date-picker');
+            
+            // 현재 시간을 한국 표준시(KST)로 초기 셋팅
+            const today = new Date();
+            const tzOffset = today.getTimezoneOffset() * 60000; 
+            const localISOTime = (new Date(today - tzOffset)).toISOString().slice(0, 10);
+            datePicker.value = localISOTime;
+
+            // 이벤트 리스너 바인딩
+            document.getElementById('search-btn').addEventListener('click', fetchData);
+            
+            // 엔터키 입력시 검색
+            document.getElementById('class-select').addEventListener('keypress', (e) => {
+                if (e.key === 'Enter') fetchData();
+            });
+
+            // API 로드 시작
+            initSchoolCode();
+        });
+    </script>
+</body>
+</html>
